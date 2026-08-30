@@ -77,7 +77,7 @@ def verify(document_type:str, file:UploadFile=File(...), db:Session=Depends(get_
  path,name=save_upload(file); image_path=as_image(path); image=preprocess(image_path); evidence=LocalOCR().extract(image["ocr_paths"],document_type); extracted,confidence=evidence["fields"],evidence["confidence"]
  fields,doc=verify_fields(db,document_type,extracted,confidence); forensic=analyze(image_path, artifact_dir=UPLOAD_DIR)
  risk=calculate(fields,forensic,doc.status if doc else None,confidence)
- result={"id":str(uuid.uuid4()),"document_type":document_type,"extracted_fields":extracted,"fields":[f.model_dump() for f in fields],"ocr":evidence,"forensics":forensic,"risk":risk,"image":{"original_url":f"/files/{name}","enhanced_url":f"/files/{Path(image['enhanced_path']).name}","quality":image["quality"],"ocr_confidence":confidence},"disclaimer":"Synthetic/demo data only. OCR and forensic indicators are decision support, not proof of fraud."}
+ result={"id":str(uuid.uuid4()),"document_type":document_type,"data_source":doc.source if doc else None,"extracted_fields":extracted,"fields":[f.model_dump() for f in fields],"ocr":evidence,"forensics":forensic,"risk":risk,"image":{"original_url":f"/files/{name}","enhanced_url":f"/files/{Path(image['enhanced_path']).name}","quality":image["quality"],"ocr_confidence":confidence},"disclaimer":"Synthetic/demo data only. OCR and forensic indicators are decision support, not proof of fraud."}
  db.add(VerificationResult(id=result["id"],document_type=document_type,score=risk["score"],level=risk["level"],payload_json=json.dumps(result)));db.commit()
  return result
 

@@ -30,7 +30,8 @@ def test_normalise(): assert normalise("Aarav-Mehta ") == "AARAVMEHTA"
 
 def test_demo_patterns():
     assert __import__('re').match(DOCUMENTS['aadhaar']['pattern'], 'DEM-AAR-1024')
-    assert not __import__('re').match(DOCUMENTS['pan']['pattern'], 'ABCDE1234F')
+    assert __import__('re').match(DOCUMENTS['pan']['pattern'], 'TESTV1234K')
+    assert not __import__('re').match(DOCUMENTS['pan']['pattern'], 'TEST1234')
 
 
 def test_risk_is_transparent():
@@ -69,6 +70,21 @@ def test_real_ocr_pipeline():
         checks[doc.document_type] = evaluate_document(db, doc.document_type, str(source), '/original', '/enhanced', 'adequate', evidence)
         assert checks[doc.document_type]['state'] == 'VERIFIED_IN_SYNTHETIC_DATA'
     assert cross_verify(db, checks)['state'] == 'CONSISTENT'
+    db.close()
+
+
+def test_sanitized_repo_b_format_fixtures_use_the_same_pipeline_and_cross_verify():
+    seed(); db = SessionLocal(); make_documents(db); ocr = LocalOCR(); checks = {}
+    for doc in db.query(Document).filter_by(source="repo_b").all():
+        source = SAMPLE_DIR / f"{doc.document_type}_{doc.identifier}.png"
+        evidence = ocr.extract(preprocess(str(source))["ocr_paths"], doc.document_type)
+        assert evidence["raw_text"] and evidence["fields"][DOCUMENTS[doc.document_type]["identifier"]] == doc.identifier
+        result = evaluate_document(db, doc.document_type, str(source), "/original", "/enhanced", "adequate", evidence)
+        assert result["state"] == "VERIFIED_IN_SYNTHETIC_DATA"
+        assert result["data_source"] == "repo_b"
+        assert result["forensics"]["advanced"] and result["risk"]["level"] == "LOW"
+        checks[doc.document_type] = result
+    assert cross_verify(db, checks)["state"] == "CONSISTENT"
     db.close()
 
 

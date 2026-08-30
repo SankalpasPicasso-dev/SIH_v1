@@ -35,6 +35,8 @@ cd frontend && npm install && npm run dev
 
 The seeded database holds invented identifiers such as `DEM-AAR-1001`, `DEMAME001X`, and `DMP100001`. These formats are not official IDs and must never be interpreted as such.
 
+It also includes three clearly fictional, sanitized `repo_b`-provenance fixtures that use realistic identifier layouts. They follow the same upload, OCR, reference lookup, forensic, risk, and cross-verification flow as the original synthetic fixtures. No raw identity data from the teammate repository is included.
+
 ## Design limits
 
 On Apple Silicon, the app first attempts macOS Vision OCR through the local Swift toolchain. It falls back to local Tesseract when Vision is unavailable; install it with `brew install tesseract` before starting the app. OCR confidence and computer-vision signals are not evidence that a document is fraudulent. The application is intentionally designed for education and presentations, not production identity decisions.

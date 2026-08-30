@@ -28,16 +28,16 @@ def evaluate_document(db, kind: str, path: str, original_url: str, enhanced_url:
     elif forensic["indicator_score"] >= 60:
         state, message = "TAMPERING_DETECTED", "Strong forensic indicators require manual review for possible tampering."
     else:
-        state, message = "VERIFIED_IN_SYNTHETIC_DATA", "Document verified against the synthetic database."
-    return {**base, "state": state, "message": message, "citizen_id": doc.citizen_id if doc else None, "fields": [field.model_dump() for field in fields], "risk": risk, "expired": bool(doc and doc.status == "expired")}
+        state, message = "VERIFIED_IN_SYNTHETIC_DATA", "Document verified against the approved local reference data."
+    return {**base, "state": state, "message": message, "citizen_id": doc.citizen_id if doc else None, "data_source": doc.source if doc else None, "fields": [field.model_dump() for field in fields], "risk": risk, "expired": bool(doc and doc.status == "expired")}
 
 
 def detect_document_type(raw: str) -> str | None:
     """Content-based type detection independent of the selected parser."""
     hits = {
-        "aadhaar": bool(__import__("re").search(r"AADHAAR|AADHAR|DEM[-\s]?[A-Z]{3}[-\s]?\d{4}", raw)),
-        "pan": bool(__import__("re").search(r"\bPAN\b|DEM[A-Z]{3}\d{3}X", raw)),
-        "passport": bool(__import__("re").search(r"PASSPORT|DMP\d{6}", raw)),
+        "aadhaar": bool(__import__("re").search(r"AADHAAR|AADHAR|DEM[-\s]?[A-Z]{3}[-\s]?\d{4}|\b\d{4}\s?\d{4}\s?\d{4}\b", raw)),
+        "pan": bool(__import__("re").search(r"\bPAN\b|INCOME TAX|DEM[A-Z]{3}\d{3}X|\b[A-Z]{5}\d{4}[A-Z]\b", raw)),
+        "passport": bool(__import__("re").search(r"PASSPORT|DMP\d{6}|\b[A-Z]\d{7}\b", raw)),
     }
     found = [kind for kind, matched in hits.items() if matched]
     return found[0] if len(found) == 1 else None
