@@ -1,0 +1,9 @@
+__pycache__/
+.pytest_cache/
+node_modules/
+.venv/
+backend/.deps/
+dist/
+data/uploads/
+data/synthetic/*.db
+.DS_Store
