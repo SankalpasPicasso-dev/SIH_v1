@@ -35,7 +35,7 @@ cd frontend && npm install && npm run dev
 
 The seeded database holds invented identifiers such as `DEM-AAR-1001`, `DEMAME001X`, and `DMP100001`. These formats are not official IDs and must never be interpreted as such.
 
-It also includes approved fictional `repo_b`-provenance records in the same reference database and realistic test images. They follow the same upload, OCR, reference lookup, forensic, risk, and cross-verification flow as the original synthetic fixtures. One supplied Repo B PAN image has its PAN number redacted, so it is deliberately detected as PAN but cannot be reference-matched without fabricating OCR output.
+It also includes approved fictional `repo_b`-provenance records in the same reference database and realistic test images. They follow the same upload, OCR, reference lookup, forensic, risk, and cross-verification flow as the original synthetic fixtures. One supplied Repo B PAN image has its PAN number redacted, so it is deliberately detected as PAN but cannot be reference-matched without fabricating OCR output. Additional Repo B Aadhaar and Passport samples from the linked source repository are available in `data/repo_b/documents`.
 
 ## Design limits
 

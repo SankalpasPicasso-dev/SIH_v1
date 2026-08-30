@@ -115,6 +115,21 @@ def test_actual_repo_b_images_use_ocr_not_filenames_or_qr_data():
     db.close()
 
 
+def test_imported_repo_b_source_records_are_available_to_normal_lookup():
+    seed(); db = SessionLocal()
+    expected = {
+        ("aadhaar", "348426827270"), ("aadhaar", "687006240742"),
+        ("aadhaar", "590554540961"), ("aadhaar", "498714770290"),
+        ("aadhaar", "935349568480"), ("aadhaar", "893831116226"),
+        ("pan", "IUWPP1391B"), ("passport", "M9104700"),
+        ("passport", "N7820370"), ("passport", "J7335300"), ("passport", "H9137927"),
+    }
+    actual = {(doc.document_type, doc.identifier) for doc in db.query(Document).filter_by(source="repo_b")}
+    assert expected <= actual
+    assert len(list((Path(__file__).parents[2] / "data" / "repo_b" / "documents").iterdir())) >= 13
+    db.close()
+
+
 def test_persistent_case_requires_pin_and_keeps_automated_result():
     db = SessionLocal()
     case, pin = create_case(db)
