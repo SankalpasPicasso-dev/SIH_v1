@@ -1,11 +1,12 @@
 """Verification orchestration driven exclusively by OCR-extracted fields."""
 from app.forensics.analyzer import analyze
+from app.preprocessing.service import UPLOAD_DIR
 from app.risk.engine import calculate
 from app.verification.service import normalise, verify_fields
 
 
 def evaluate_document(db, kind: str, path: str, original_url: str, enhanced_url: str, quality: str, ocr: dict):
-    forensic = analyze(path)
+    forensic = analyze(path, artifact_dir=UPLOAD_DIR)
     extracted, confidence = ocr["fields"], ocr["confidence"]
     base = {"document_type": kind, "citizen_id": None, "extracted_fields": extracted, "ocr": {key: ocr.get(key) for key in ("raw_text", "confidence", "boxes", "engine", "error")}, "forensics": forensic, "image": {"original_url": original_url, "enhanced_url": enhanced_url, "quality": quality}}
     raw = (ocr.get("raw_text") or "").upper()

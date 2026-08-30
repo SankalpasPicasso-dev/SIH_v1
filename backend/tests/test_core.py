@@ -20,6 +20,9 @@ from app.verification.cases import create_case, require_case, replace_case_docum
 from app.verification.case_service import detect_document_type
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
+import cv2
+import numpy as np
+from app.forensics.analyzer import analyze
 
 
 def test_normalise(): assert normalise("Aarav-Mehta ") == "AARAVMEHTA"
@@ -33,6 +36,26 @@ def test_demo_patterns():
 def test_risk_is_transparent():
     field = [FieldResult(field='date_of_birth', extracted_value='1999', expected_value='1998', status='MISMATCH', severity='high')]
     assert calculate(field, {"indicator_score": 0})['score'] == 25
+
+
+def test_optional_forensic_detectors_are_evidence_only_and_keep_artifacts_scoped(tmp_path, monkeypatch):
+    image = np.full((160, 240, 3), 220, dtype=np.uint8)
+    cv2.rectangle(image, (30, 30), (90, 90), (20, 20, 20), -1)
+    path = tmp_path / "document.png"; cv2.imwrite(str(path), image)
+    result = analyze(str(path), artifact_dir=tmp_path)
+    assert {"localized_ela", "copy_move", "resampling", "jpeg_blocks", "edge_inconsistency"} <= set(result["advanced"])
+    assert 0.5 <= result["confidence"] <= 1
+    assert "not proof" in result["note"]
+    monkeypatch.setenv("FORENSICS_COPY_MOVE_ENABLED", "false")
+    disabled = analyze(str(path), artifact_dir=tmp_path)
+    assert disabled["advanced"]["copy_move"]["enabled"] is False
+
+
+def test_case_evidence_uses_existing_upload_storage_for_forensic_overlays(tmp_path):
+    image = np.full((180, 260, 3), 200, dtype=np.uint8)
+    path = tmp_path / "case-upload.png"; cv2.imwrite(str(path), image)
+    result = analyze(str(path), artifact_dir=tmp_path)
+    assert all(url.startswith("/files/") for url in result["artifact_urls"])
 
 
 def test_real_ocr_pipeline():
@@ -80,6 +103,9 @@ def test_case_api_user_to_officer_review_flow():
         headers = {"Authorization": f"Bearer {login.json()['token']}"}
         detail = client.get(f"/api/officer/cases/{case_id}", headers=headers)
         assert detail.status_code == 200
+        forensic_evidence = detail.json()["documents"][0]["evidence"]["forensics"]
+        assert "advanced" in forensic_evidence
+        assert forensic_evidence["advanced"]["copy_move"]["enabled"] is True
         original_url = detail.json()["documents"][0]["evidence"]["image"]["original_url"]
         assert client.get(original_url).status_code == 200
         document_id = detail.json()["documents"][0]["id"]

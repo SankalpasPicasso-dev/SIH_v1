@@ -38,3 +38,5 @@ The seeded database holds invented identifiers such as `DEM-AAR-1001`, `DEMAME00
 ## Design limits
 
 On Apple Silicon, the app first attempts macOS Vision OCR through the local Swift toolchain. It falls back to local Tesseract when Vision is unavailable; install it with `brew install tesseract` before starting the app. OCR confidence and computer-vision signals are not evidence that a document is fraudulent. The application is intentionally designed for education and presentations, not production identity decisions.
+
+Optional forensic signals (localized ELA, copy-move, resampling, JPEG blocks, and edge inconsistency) are enabled by default and only support officer review. Disable one with an environment variable such as `FORENSICS_COPY_MOVE_ENABLED=false`; the corresponding names are `LOCALIZED_ELA`, `COPY_MOVE`, `RESAMPLING`, `JPEG_BLOCKS`, and `EDGE_INCONSISTENCY`.
