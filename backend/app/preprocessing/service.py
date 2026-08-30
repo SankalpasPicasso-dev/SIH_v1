@@ -16,6 +16,8 @@ def preprocess(path: str):
     # upload intact and let OCR choose between a natural enhanced image and a
     # thresholded text-focused variant rather than assuming one is always best.
     threshold=cv2.adaptiveThreshold(sharp,255,cv2.ADAPTIVE_THRESH_GAUSSIAN_C,cv2.THRESH_BINARY,31,9)
-    base=Path(path).stem; enhanced=str(UPLOAD_DIR/f"{base}_enhanced.png"); ocr=str(UPLOAD_DIR/f"{base}_ocr.png"); threshold_path=str(UPLOAD_DIR/f"{base}_threshold_ocr.png")
-    cv2.imwrite(enhanced,sharp); cv2.imwrite(ocr,sharp); cv2.imwrite(threshold_path,threshold)
-    return {"width":w,"height":h,"quality":"adequate" if min(w,h)>=500 else "limited","enhanced_path":enhanced,"ocr_path":ocr,"ocr_paths":[ocr,threshold_path]}
+    base=Path(path).stem; enhanced=str(UPLOAD_DIR/f"{base}_enhanced.png"); ocr=str(UPLOAD_DIR/f"{base}_ocr.png"); threshold_path=str(UPLOAD_DIR/f"{base}_threshold_ocr.png"); natural_path=str(UPLOAD_DIR/f"{base}_natural_ocr.png")
+    # Keep a minimally processed variant: coloured cards and low-resolution scans
+    # can lose small printed text when thresholded too aggressively.
+    cv2.imwrite(enhanced,sharp); cv2.imwrite(ocr,sharp); cv2.imwrite(threshold_path,threshold); cv2.imwrite(natural_path,gray)
+    return {"width":w,"height":h,"quality":"adequate" if min(w,h)>=500 else "limited","enhanced_path":enhanced,"ocr_path":ocr,"ocr_paths":[ocr,threshold_path,natural_path]}

@@ -75,7 +75,10 @@ def test_real_ocr_pipeline():
 
 def test_sanitized_repo_b_format_fixtures_use_the_same_pipeline_and_cross_verify():
     seed(); db = SessionLocal(); make_documents(db); ocr = LocalOCR(); checks = {}
-    for doc in db.query(Document).filter_by(source="repo_b").all():
+    # This intentional three-document fixture shares one fictional identity.
+    sample_riya = [doc for doc in db.query(Document).filter_by(source="repo_b").all()
+                   if doc.identifier in {"111122223333", "TESTV1234K", "T1234567"}]
+    for doc in sample_riya:
         source = SAMPLE_DIR / f"{doc.document_type}_{doc.identifier}.png"
         evidence = ocr.extract(preprocess(str(source))["ocr_paths"], doc.document_type)
         assert evidence["raw_text"] and evidence["fields"][DOCUMENTS[doc.document_type]["identifier"]] == doc.identifier
@@ -85,6 +88,30 @@ def test_sanitized_repo_b_format_fixtures_use_the_same_pipeline_and_cross_verify
         assert result["forensics"]["advanced"] and result["risk"]["level"] == "LOW"
         checks[doc.document_type] = result
     assert cross_verify(db, checks)["state"] == "CONSISTENT"
+    db.close()
+
+
+def test_actual_repo_b_images_use_ocr_not_filenames_or_qr_data():
+    """Visible text drives classification/extraction for the supplied realistic fixtures."""
+    seed(); db = SessionLocal(); ocr = LocalOCR()
+    fixtures = {
+        "aadhaar_basant_raj.jpg": ("aadhaar", "VERIFIED_IN_SYNTHETIC_DATA", "123456789101"),
+        "passport_maqdooma_fathima.jpeg": ("passport", "VERIFIED_IN_SYNTHETIC_DATA", "R7123405"),
+        # The PAN number is redacted in the image, so it is correctly not invented.
+        "pan_pavani_praveen_redacted.jpg": ("pan", "UNABLE_TO_VERIFY", None),
+    }
+    repo_b_dir = Path(__file__).parents[2] / "data" / "repo_b" / "documents"
+    for filename, (kind, expected_state, identifier) in fixtures.items():
+        image = repo_b_dir / filename
+        evidence = ocr.extract(preprocess(str(image))["ocr_paths"], kind)
+        assert detect_document_type(evidence["raw_text"]) == kind
+        assert evidence["engine"] != "unavailable"
+        if identifier:
+            assert evidence["fields"][DOCUMENTS[kind]["identifier"]] == identifier
+        else:
+            assert DOCUMENTS[kind]["identifier"] not in evidence["fields"]
+        result = evaluate_document(db, kind, str(image), "/original", "/enhanced", "limited", evidence)
+        assert result["state"] == expected_state
     db.close()
 
 
@@ -211,6 +238,17 @@ def test_wrong_document_type_is_explicit_and_routed_to_inspection():
     case, _pin = create_case(db)
     assert replace_case_document(db, case, "pan", result).status == "NEEDS_INSPECTION"
     db.close()
+
+
+def test_legacy_single_document_endpoint_reports_type_mismatch_too():
+    from app.main import app
+    source = SAMPLE_DIR / "passport_DMP100001.png"
+    with TestClient(app) as client, source.open("rb") as upload:
+        response = client.post("/api/verify/pan", files={"file": (source.name, upload, "image/png")})
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["state"] == "DOCUMENT_TYPE_MISMATCH"
+    assert payload["detected_document_type"] == "passport"
 
 
 def test_case_status_is_verified_only_after_all_documents_and_cross_check():

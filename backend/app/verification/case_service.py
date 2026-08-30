@@ -17,8 +17,9 @@ def evaluate_document(db, kind: str, path: str, original_url: str, enhanced_url:
         return {**base, "state": "DOCUMENT_TYPE_MISMATCH", "message": f"Document type mismatch: expected {kind.title()}, detected {detected_type.title()}.", "fields": [], "risk": risk}
     if raw and not detected_type:
         return {**base, "state": "UNABLE_TO_DETERMINE_DOCUMENT_TYPE", "message": "Unable to determine document type.", "fields": [], "risk": calculate([], forensic, None, confidence)}
-    if not extracted or confidence < .35:
-        return {**base, "state": "UNABLE_TO_VERIFY", "message": "Unable to reliably extract document information.", "fields": [], "risk": calculate([], forensic, None, confidence)}
+    identifier = extracted.get(__import__("app.verification.config", fromlist=["DOCUMENTS"]).DOCUMENTS[kind]["identifier"])
+    if not extracted or not identifier or confidence < .35:
+        return {**base, "state": "UNABLE_TO_VERIFY", "message": "Unable to reliably extract the document number from visible text.", "fields": [], "risk": calculate([], forensic, None, confidence)}
     fields, doc = verify_fields(db, kind, extracted, confidence)
     risk = calculate(fields, forensic, doc.status if doc else None, confidence)
     if not doc:
@@ -36,7 +37,7 @@ def detect_document_type(raw: str) -> str | None:
     """Content-based type detection independent of the selected parser."""
     hits = {
         "aadhaar": bool(__import__("re").search(r"AADHAAR|AADHAR|DEM[-\s]?[A-Z]{3}[-\s]?\d{4}|\b\d{4}\s?\d{4}\s?\d{4}\b", raw)),
-        "pan": bool(__import__("re").search(r"\bPAN\b|INCOME TAX|DEM[A-Z]{3}\d{3}X|\b[A-Z]{5}\d{4}[A-Z]\b", raw)),
+        "pan": bool(__import__("re").search(r"\bPAN\b|INCOM\w{0,3}\s*TAX|PERMANENT\s+ACCOUNT|DEM[A-Z]{3}\d{3}X|\b[A-Z]{5}\d{4}[A-Z]\b", raw)),
         "passport": bool(__import__("re").search(r"PASSPORT|DMP\d{6}|\b[A-Z]\d{7}\b", raw)),
     }
     found = [kind for kind, matched in hits.items() if matched]

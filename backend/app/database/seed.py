@@ -1,4 +1,4 @@
-"""Synthetic-only fixture generator. Every identifier uses an invented DEM/DMP format."""
+"""Fictional local reference-data generator for the demo datasets."""
 import json
 from datetime import date, timedelta
 from app.database.session import Base, engine, SessionLocal
@@ -30,7 +30,9 @@ def records():
     yield name,dob,gender,address,"passport","T1234567",{"surname":"Verma","given_name":"Sample Riya","passport_number":"T1234567","nationality":"TESTLAND","date_of_birth":dob,"sex":"F","date_of_issue":"2021-06-12","date_of_expiry":"2031-06-11","place_of_birth":"Test City"},"valid","repo_b"
     # Authorized fictional Repo B reference records, kept in the same local DB.
     yield "Basant Raj","2000-01-01","Male","Repo B test address","aadhaar","123456789101",{"name":"Basant Raj","date_of_birth":"2000-01-01","gender":"Male","aadhaar_number":"123456789101"},"valid","repo_b"
-    yield "Pavani Praveen","2007-05-25","Female","Repo B test address","pan","IUWPP1391B",{"name":"PAVANI PRAVEEN","father_name":"PRAVEEN SUBBANANJAPPA","date_of_birth":"2007-05-25","pan_number":"IUWPP1391B"},"valid","repo_b"
+    # The supplied PAN number is redacted in its image.  Keep no invented
+    # reference identifier: it must fail extraction rather than be fabricated.
+    # Its other visible fields are covered by OCR regression tests below.
     yield "Maqdooma Fathima","1981-06-23","Female","Repo B test address","passport","R7123405",{"given_name":"MAQDOOMA FATHIMA","passport_number":"R7123405","nationality":"IND"},"valid","repo_b"
 
 def _ensure_document_source_column():
@@ -41,7 +43,7 @@ def _ensure_document_source_column():
 
 def seed():
     Base.metadata.create_all(engine); _ensure_document_source_column(); db=SessionLocal()
-    if db.query(Document).count() == 21 and db.query(Citizen).count() == 8: db.close(); return
+    if db.query(Document).count() == 20 and db.query(Citizen).count() == 8: db.close(); return
     db.query(Document).delete(); db.query(Citizen).delete(); db.commit()
     current_citizen = None; current_identity = None
     for name,dob,gender,address,kind,identifier,fields,status,source in records():
