@@ -1,5 +1,7 @@
 # GovDoc Verify — Synthetic Demo
 
+DEMO VIDEO LINK: https://drive.google.com/file/d/1q6M89-hq9l0Ws0Ha3Eiyri5fZFm8kG2j/view?usp=sharing
+
 A college/demo application for transparent three-document integrity assessment. It uses **only fictional, clearly non-real identifiers** and never connects to government systems.
 
 ## What it does
@@ -42,3 +44,4 @@ It also includes approved fictional `repo_b`-provenance records in the same refe
 On Apple Silicon, the app first attempts macOS Vision OCR through the local Swift toolchain. It falls back to local Tesseract when Vision is unavailable; install it with `brew install tesseract` before starting the app. OCR confidence and computer-vision signals are not evidence that a document is fraudulent. The application is intentionally designed for education and presentations, not production identity decisions.
 
 Optional forensic signals (localized ELA, copy-move, resampling, JPEG blocks, and edge inconsistency) are enabled by default and only support officer review. Disable one with an environment variable such as `FORENSICS_COPY_MOVE_ENABLED=false`; the corresponding names are `LOCALIZED_ELA`, `COPY_MOVE`, `RESAMPLING`, `JPEG_BLOCKS`, and `EDGE_INCONSISTENCY`.
+
