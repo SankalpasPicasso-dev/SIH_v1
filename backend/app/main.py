@@ -70,15 +70,17 @@ def ocr(document_type:str=Form(...), file:UploadFile=File(...)):
  return {"fields":evidence["fields"],"confidence":evidence["confidence"],"raw_text":evidence["raw_text"],"boxes":evidence["boxes"],"engine":evidence["engine"],"message":"Fields are extracted from the visible document image only."}
 @app.post("/api/forensics")
 def forensics(file:UploadFile=File(...)):
- path,_=save_upload(file); return analyze(as_image(path))
+ path,_=save_upload(file); return analyze(as_image(path), artifact_dir=UPLOAD_DIR)
 @app.post("/api/verify/{document_type}")
 def verify(document_type:str, file:UploadFile=File(...), db:Session=Depends(get_db)):
  if document_type not in DOCUMENTS: raise HTTPException(404,"Unsupported document type")
- path,name=save_upload(file); image_path=as_image(path); image=preprocess(image_path); evidence=LocalOCR().extract(image["ocr_paths"],document_type); extracted,confidence=evidence["fields"],evidence["confidence"]
- fields,doc=verify_fields(db,document_type,extracted,confidence); forensic=analyze(image_path)
- risk=calculate(fields,forensic,doc.status if doc else None,confidence)
- result={"id":str(uuid.uuid4()),"document_type":document_type,"extracted_fields":extracted,"fields":[f.model_dump() for f in fields],"ocr":evidence,"forensics":forensic,"risk":risk,"image":{"original_url":f"/files/{name}","enhanced_url":f"/files/{Path(image['enhanced_path']).name}","quality":image["quality"],"ocr_confidence":confidence},"disclaimer":"Synthetic/demo data only. OCR and forensic indicators are decision support, not proof of fraud."}
- db.add(VerificationResult(id=result["id"],document_type=document_type,score=risk["score"],level=risk["level"],payload_json=json.dumps(result)));db.commit()
+ path,name=save_upload(file); image_path=as_image(path); image=preprocess(image_path); evidence=LocalOCR().extract(image["ocr_paths"],document_type)
+ # Keep the legacy endpoint on the exact same evidence-led path as cases,
+ # including explicit wrong-document-type handling.
+ result=evaluate_document(db,document_type,image_path,f"/files/{name}",f"/files/{Path(image['enhanced_path']).name}",image["quality"],evidence)
+ result.update({"id":str(uuid.uuid4()),"ocr":evidence,"disclaimer":"Synthetic/demo data only. OCR and forensic indicators are decision support, not proof of fraud."})
+ result["image"]["ocr_confidence"]=evidence["confidence"]
+ db.add(VerificationResult(id=result["id"],document_type=document_type,score=result["risk"]["score"],level=result["risk"]["level"],payload_json=json.dumps(result)));db.commit()
  return result
 
 @app.post("/api/cases")

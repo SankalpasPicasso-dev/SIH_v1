@@ -19,6 +19,8 @@ class Document(Base):
     identifier: Mapped[str] = mapped_column(String(40), unique=True)
     fields_json: Mapped[str] = mapped_column(Text)
     status: Mapped[str] = mapped_column(String(30), default="valid")
+    # Provenance is internal-only; the verification path is the same for every source.
+    source: Mapped[str] = mapped_column(String(30), default="synthetic")
 
 class VerificationResult(Base):
     __tablename__ = "verification_results"

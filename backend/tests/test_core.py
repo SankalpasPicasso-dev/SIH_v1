@@ -20,6 +20,9 @@ from app.verification.cases import create_case, require_case, replace_case_docum
 from app.verification.case_service import detect_document_type
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
+import cv2
+import numpy as np
+from app.forensics.analyzer import analyze
 
 
 def test_normalise(): assert normalise("Aarav-Mehta ") == "AARAVMEHTA"
@@ -27,12 +30,33 @@ def test_normalise(): assert normalise("Aarav-Mehta ") == "AARAVMEHTA"
 
 def test_demo_patterns():
     assert __import__('re').match(DOCUMENTS['aadhaar']['pattern'], 'DEM-AAR-1024')
-    assert not __import__('re').match(DOCUMENTS['pan']['pattern'], 'ABCDE1234F')
+    assert __import__('re').match(DOCUMENTS['pan']['pattern'], 'TESTV1234K')
+    assert not __import__('re').match(DOCUMENTS['pan']['pattern'], 'TEST1234')
 
 
 def test_risk_is_transparent():
     field = [FieldResult(field='date_of_birth', extracted_value='1999', expected_value='1998', status='MISMATCH', severity='high')]
     assert calculate(field, {"indicator_score": 0})['score'] == 25
+
+
+def test_optional_forensic_detectors_are_evidence_only_and_keep_artifacts_scoped(tmp_path, monkeypatch):
+    image = np.full((160, 240, 3), 220, dtype=np.uint8)
+    cv2.rectangle(image, (30, 30), (90, 90), (20, 20, 20), -1)
+    path = tmp_path / "document.png"; cv2.imwrite(str(path), image)
+    result = analyze(str(path), artifact_dir=tmp_path)
+    assert {"localized_ela", "copy_move", "resampling", "jpeg_blocks", "edge_inconsistency"} <= set(result["advanced"])
+    assert 0.5 <= result["confidence"] <= 1
+    assert "not proof" in result["note"]
+    monkeypatch.setenv("FORENSICS_COPY_MOVE_ENABLED", "false")
+    disabled = analyze(str(path), artifact_dir=tmp_path)
+    assert disabled["advanced"]["copy_move"]["enabled"] is False
+
+
+def test_case_evidence_uses_existing_upload_storage_for_forensic_overlays(tmp_path):
+    image = np.full((180, 260, 3), 200, dtype=np.uint8)
+    path = tmp_path / "case-upload.png"; cv2.imwrite(str(path), image)
+    result = analyze(str(path), artifact_dir=tmp_path)
+    assert all(url.startswith("/files/") for url in result["artifact_urls"])
 
 
 def test_real_ocr_pipeline():
@@ -46,6 +70,63 @@ def test_real_ocr_pipeline():
         checks[doc.document_type] = evaluate_document(db, doc.document_type, str(source), '/original', '/enhanced', 'adequate', evidence)
         assert checks[doc.document_type]['state'] == 'VERIFIED_IN_SYNTHETIC_DATA'
     assert cross_verify(db, checks)['state'] == 'CONSISTENT'
+    db.close()
+
+
+def test_sanitized_repo_b_format_fixtures_use_the_same_pipeline_and_cross_verify():
+    seed(); db = SessionLocal(); make_documents(db); ocr = LocalOCR(); checks = {}
+    # This intentional three-document fixture shares one fictional identity.
+    sample_riya = [doc for doc in db.query(Document).filter_by(source="repo_b").all()
+                   if doc.identifier in {"111122223333", "TESTV1234K", "T1234567"}]
+    for doc in sample_riya:
+        source = SAMPLE_DIR / f"{doc.document_type}_{doc.identifier}.png"
+        evidence = ocr.extract(preprocess(str(source))["ocr_paths"], doc.document_type)
+        assert evidence["raw_text"] and evidence["fields"][DOCUMENTS[doc.document_type]["identifier"]] == doc.identifier
+        result = evaluate_document(db, doc.document_type, str(source), "/original", "/enhanced", "adequate", evidence)
+        assert result["state"] == "VERIFIED_IN_SYNTHETIC_DATA"
+        assert result["data_source"] == "repo_b"
+        assert result["forensics"]["advanced"] and result["risk"]["level"] == "LOW"
+        checks[doc.document_type] = result
+    assert cross_verify(db, checks)["state"] == "CONSISTENT"
+    db.close()
+
+
+def test_actual_repo_b_images_use_ocr_not_filenames_or_qr_data():
+    """Visible text drives classification/extraction for the supplied realistic fixtures."""
+    seed(); db = SessionLocal(); ocr = LocalOCR()
+    fixtures = {
+        "aadhaar_basant_raj.jpg": ("aadhaar", "VERIFIED_IN_SYNTHETIC_DATA", "123456789101"),
+        "passport_maqdooma_fathima.jpeg": ("passport", "VERIFIED_IN_SYNTHETIC_DATA", "R7123405"),
+        # The PAN number is redacted in the image, so it is correctly not invented.
+        "pan_pavani_praveen_redacted.jpg": ("pan", "UNABLE_TO_VERIFY", None),
+    }
+    repo_b_dir = Path(__file__).parents[2] / "data" / "repo_b" / "documents"
+    for filename, (kind, expected_state, identifier) in fixtures.items():
+        image = repo_b_dir / filename
+        evidence = ocr.extract(preprocess(str(image))["ocr_paths"], kind)
+        assert detect_document_type(evidence["raw_text"]) == kind
+        assert evidence["engine"] != "unavailable"
+        if identifier:
+            assert evidence["fields"][DOCUMENTS[kind]["identifier"]] == identifier
+        else:
+            assert DOCUMENTS[kind]["identifier"] not in evidence["fields"]
+        result = evaluate_document(db, kind, str(image), "/original", "/enhanced", "limited", evidence)
+        assert result["state"] == expected_state
+    db.close()
+
+
+def test_imported_repo_b_source_records_are_available_to_normal_lookup():
+    seed(); db = SessionLocal()
+    expected = {
+        ("aadhaar", "348426827270"), ("aadhaar", "687006240742"),
+        ("aadhaar", "590554540961"), ("aadhaar", "498714770290"),
+        ("aadhaar", "935349568480"), ("aadhaar", "893831116226"),
+        ("pan", "IUWPP1391B"), ("passport", "M9104700"),
+        ("passport", "N7820370"), ("passport", "J7335300"), ("passport", "H9137927"),
+    }
+    actual = {(doc.document_type, doc.identifier) for doc in db.query(Document).filter_by(source="repo_b")}
+    assert expected <= actual
+    assert len(list((Path(__file__).parents[2] / "data" / "repo_b" / "documents").iterdir())) >= 13
     db.close()
 
 
@@ -80,6 +161,9 @@ def test_case_api_user_to_officer_review_flow():
         headers = {"Authorization": f"Bearer {login.json()['token']}"}
         detail = client.get(f"/api/officer/cases/{case_id}", headers=headers)
         assert detail.status_code == 200
+        forensic_evidence = detail.json()["documents"][0]["evidence"]["forensics"]
+        assert "advanced" in forensic_evidence
+        assert forensic_evidence["advanced"]["copy_move"]["enabled"] is True
         original_url = detail.json()["documents"][0]["evidence"]["image"]["original_url"]
         assert client.get(original_url).status_code == 200
         document_id = detail.json()["documents"][0]["id"]
@@ -169,6 +253,17 @@ def test_wrong_document_type_is_explicit_and_routed_to_inspection():
     case, _pin = create_case(db)
     assert replace_case_document(db, case, "pan", result).status == "NEEDS_INSPECTION"
     db.close()
+
+
+def test_legacy_single_document_endpoint_reports_type_mismatch_too():
+    from app.main import app
+    source = SAMPLE_DIR / "passport_DMP100001.png"
+    with TestClient(app) as client, source.open("rb") as upload:
+        response = client.post("/api/verify/pan", files={"file": (source.name, upload, "image/png")})
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["state"] == "DOCUMENT_TYPE_MISMATCH"
+    assert payload["detected_document_type"] == "passport"
 
 
 def test_case_status_is_verified_only_after_all_documents_and_cross_check():

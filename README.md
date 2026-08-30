@@ -35,6 +35,10 @@ cd frontend && npm install && npm run dev
 
 The seeded database holds invented identifiers such as `DEM-AAR-1001`, `DEMAME001X`, and `DMP100001`. These formats are not official IDs and must never be interpreted as such.
 
+It also includes approved fictional `repo_b`-provenance records in the same reference database and realistic test images. They follow the same upload, OCR, reference lookup, forensic, risk, and cross-verification flow as the original synthetic fixtures. One supplied Repo B PAN image has its PAN number redacted, so it is deliberately detected as PAN but cannot be reference-matched without fabricating OCR output. Additional Repo B Aadhaar and Passport samples from the linked source repository are available in `data/repo_b/documents`.
+
 ## Design limits
 
 On Apple Silicon, the app first attempts macOS Vision OCR through the local Swift toolchain. It falls back to local Tesseract when Vision is unavailable; install it with `brew install tesseract` before starting the app. OCR confidence and computer-vision signals are not evidence that a document is fraudulent. The application is intentionally designed for education and presentations, not production identity decisions.
+
+Optional forensic signals (localized ELA, copy-move, resampling, JPEG blocks, and edge inconsistency) are enabled by default and only support officer review. Disable one with an environment variable such as `FORENSICS_COPY_MOVE_ENABLED=false`; the corresponding names are `LOCALIZED_ELA`, `COPY_MOVE`, `RESAMPLING`, `JPEG_BLOCKS`, and `EDGE_INCONSISTENCY`.

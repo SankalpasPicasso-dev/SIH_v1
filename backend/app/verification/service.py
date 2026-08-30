@@ -19,6 +19,7 @@ def verify_fields(db: Session, kind: str, extracted: dict, confidence: float = .
             status, sev = "INVALID_FORMAT", "high"
         elif confidence < .55: status, sev = "LOW_CONFIDENCE", "medium"
         elif not doc: status, sev = "NOT_FOUND", "medium"
+        elif field not in expected: status, sev = "NOT_AVAILABLE", "info"
         elif normalise(actual) == normalise(expected.get(field)): status, sev = "MATCH", "info"
         else: status, sev = "MISMATCH", "high" if field in ("date_of_birth", cfg["identifier"]) else "medium"
         results.append(FieldResult(field=field, extracted_value=actual, expected_value=expected.get(field), status=status, severity=sev, confidence=round(confidence,2)))

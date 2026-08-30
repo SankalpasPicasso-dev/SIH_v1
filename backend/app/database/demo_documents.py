@@ -7,7 +7,7 @@ from app.models.entities import Document
 
 SAMPLE_DIR = Path(__file__).resolve().parents[3] / "data" / "synthetic" / "documents"
 COLORS={"aadhaar":"#0b1f3a","pan":"#6b3c14","passport":"#185c46"}
-FIXTURE_VERSION = "3"
+FIXTURE_VERSION = "4"
 def _fonts():
     for candidate in ("/System/Library/Fonts/Supplemental/Arial.ttf", "/Library/Fonts/Arial.ttf"):
         if Path(candidate).exists():
@@ -16,17 +16,18 @@ def _fonts():
 def make_documents(db: Session):
     SAMPLE_DIR.mkdir(parents=True,exist_ok=True)
     version_file = SAMPLE_DIR / ".fixture_version"
-    if len(list(SAMPLE_DIR.glob("*.png"))) == 19 and version_file.exists() and version_file.read_text() == FIXTURE_VERSION: return
+    if len(list(SAMPLE_DIR.glob("*.png"))) == 25 and version_file.exists() and version_file.read_text() == FIXTURE_VERSION: return
     for old in SAMPLE_DIR.glob("*.png"): old.unlink()
     font, heading_font = _fonts()
     for doc in db.query(Document).all():
         fields=json.loads(doc.fields_json); im=Image.new("RGB",(1400,900),"#fafafa"); draw=ImageDraw.Draw(im)
-        draw.rectangle((0,0,1400,120),fill=COLORS[doc.document_type]); draw.text((50,38),"GOVDOC VERIFY — SYNTHETIC %s-LIKE DEMO" % doc.document_type.upper(),fill="white",font=heading_font)
+        source_label = "SANITIZED REPO B FORMAT" if doc.source == "repo_b" else "SYNTHETIC"
+        draw.rectangle((0,0,1400,120),fill=COLORS[doc.document_type]); draw.text((50,38),"GOVDOC VERIFY — %s %s-LIKE DEMO" % (source_label, doc.document_type.upper()),fill="white",font=heading_font)
         draw.text((50,155),"NOT A GOVERNMENT DOCUMENT · FICTIONAL TEST DATA",fill="#b42318",font=font)
         y=220
         for key,value in fields.items():
             draw.text((60,y),"%s: %s" % (key.replace("_"," ").title(),value),fill="#172033",font=font); y+=58
-        draw.text((60,810),"Synthetic OCR evaluation fixture",fill="#475569",font=font)
+        draw.text((60,810),"%s OCR evaluation fixture" % source_label.title(),fill="#475569",font=font)
         im.save(SAMPLE_DIR / ("%s_%s.png" % (doc.document_type,doc.identifier)))
     # Deliberate, visibly labelled demo variants. They never represent real documents.
     variants = [
